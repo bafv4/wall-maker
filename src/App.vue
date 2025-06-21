@@ -19,16 +19,15 @@
                 </v-col>
               </v-row>
               <v-divider class="my-4 mt-2" />
-              <!-- 画像アップロード -->
-              <h4 class="mb-2">画像</h4>
-              <v-row>
-                <v-col cols="6">
-                  <ImageUploader label="背景画像をアップロード" :aspect-ratio="16 / 9" @update:image="onBackgroundUpdate" />
-                </v-col>
-                <v-col cols="6">
-                  <ImageUploader label="ロック画像をアップロード" @update:image="onLockUpdate" />
-                </v-col>
-              </v-row>
+              <!-- 背景設定 -->
+              <BackgroundSettings 
+                :screen-width="selectedResolution.width" 
+                :screen-height="selectedResolution.height"
+                @update:background="onBackgroundUpdate" 
+              />
+              <!-- ロック画像アップロード -->
+              <h4 class="mb-2">ロック画像</h4>
+              <ImageUploader label="ロック画像をアップロード" @update:image="onLockUpdate" />
               <v-divider class="my-4" />
               <!-- レイアウトエディタ -->
               <h4 class="mb-2">レイアウト</h4>
@@ -59,6 +58,7 @@ import { ref, computed, nextTick } from 'vue'
 import ImageUploader from './components/ImageUploader.vue'
 import LayoutEditor from './components/LayoutEditor.vue'
 import WallPreview from './components/WallPreview.vue'
+import BackgroundSettings from './components/BackgroundSettings.vue'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 
@@ -127,7 +127,7 @@ function createTransparentPng(width = 32, height = 32) {
   return canvas.toDataURL('image/png')
 }
 
-const backgroundImageToUse = computed(() => backgroundImage.value || createBlackPng())
+const backgroundImageToUse = computed(() => backgroundImage.value || createBlackPng(selectedResolution.value.width, selectedResolution.value.height))
 const lockImageToUse = computed(() => lockImage.value || createTransparentPng())
 
 const packName = ref('')
