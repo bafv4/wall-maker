@@ -18,6 +18,53 @@
         :aspect-ratio="16 / 9" 
         @update:image="onImageUpdate" 
       />
+      
+      <!-- 画像調整オプション -->
+      <v-expansion-panels class="mt-3">
+        <v-expansion-panel>
+          <v-expansion-panel-title>
+            画像調整オプション
+          </v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <!-- 明度調整 -->
+            <v-slider
+              v-model="imageBrightness"
+              label="明度"
+              min="-100"
+              max="100"
+              step="1"
+              thumb-label
+              @update:model-value="onImageAdjustmentChange"
+              @start="onSliderStart"
+              @end="onSliderEnd"
+            />
+            
+            <!-- ぼかし調整 -->
+            <v-slider
+              v-model="imageBlur"
+              label="ぼかし"
+              min="0"
+              max="20"
+              step="0.5"
+              thumb-label
+              @update:model-value="onImageAdjustmentChange"
+              @start="onSliderStart"
+              @end="onSliderEnd"
+            />
+            
+            <!-- リセットボタン -->
+            <v-btn
+              color="secondary"
+              variant="outlined"
+              size="small"
+              class="mt-3"
+              @click="resetImageAdjustments"
+            >
+              調整をリセット
+            </v-btn>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
     </div>
     
     <!-- 単色背景 -->
@@ -128,6 +175,9 @@ const gradientDirection = ref('vertical')
 const colorPickerDialog = ref(false)
 const currentColorPicker = ref('#000000')
 const currentColorType = ref('')
+const imageBrightness = ref(0)
+const imageBlur = ref(0)
+const isSliderDragging = ref(false)
 
 // 背景画像を生成する関数
 function generateBackgroundImage() {
@@ -137,8 +187,8 @@ function generateBackgroundImage() {
   const ctx = canvas.getContext('2d')
 
   if (backgroundType.value === 'image' && uploadedImage.value) {
-    // 画像の場合はそのまま返す
-    emit('update:background', uploadedImage.value)
+    // 画像の場合は調整を適用
+    processImageWithAdjustments()
     return
   }
 
@@ -168,6 +218,62 @@ function generateBackgroundImage() {
 
   const dataUrl = canvas.toDataURL('image/png')
   emit('update:background', dataUrl)
+}
+
+// 画像調整を適用する関数
+function processImageWithAdjustments() {
+  const img = new Image()
+  img.onload = () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = props.screenWidth
+    canvas.height = props.screenHeight
+    const ctx = canvas.getContext('2d')
+
+    // アスペクト比維持して中央に描画
+    const imgRatio = img.width / img.height
+    const canvasRatio = props.screenWidth / props.screenHeight
+    let drawWidth, drawHeight, offsetX, offsetY
+    
+    if (imgRatio > canvasRatio) {
+      drawWidth = props.screenWidth
+      drawHeight = props.screenWidth / imgRatio
+      offsetX = 0
+      offsetY = (props.screenHeight - drawHeight) / 2
+    } else {
+      drawHeight = props.screenHeight
+      drawWidth = props.screenHeight * imgRatio
+      offsetX = (props.screenWidth - drawWidth) / 2
+      offsetY = 0
+    }
+
+    // ぼかし効果を適用
+    if (imageBlur.value > 0) {
+      ctx.filter = `blur(${imageBlur.value}px)`
+    }
+
+    // 画像を描画
+    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight)
+
+    // 明度調整を適用
+    if (imageBrightness.value !== 0) {
+      const imageData = ctx.getImageData(0, 0, props.screenWidth, props.screenHeight)
+      const data = imageData.data
+      const factor = 1 + imageBrightness.value / 100
+
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = Math.min(255, Math.max(0, data[i] * factor))     // Red
+        data[i + 1] = Math.min(255, Math.max(0, data[i + 1] * factor)) // Green
+        data[i + 2] = Math.min(255, Math.max(0, data[i + 2] * factor)) // Blue
+        // Alphaは変更しない
+      }
+
+      ctx.putImageData(imageData, 0, 0)
+    }
+
+    const dataUrl = canvas.toDataURL('image/png')
+    emit('update:background', dataUrl)
+  }
+  img.src = uploadedImage.value
 }
 
 // イベントハンドラー
@@ -215,6 +321,29 @@ function onColorPickerChange() {
 
 function closeColorPicker() {
   colorPickerDialog.value = false
+}
+
+function onImageAdjustmentChange() {
+  if (backgroundType.value === 'image' && !isSliderDragging.value) {
+    generateBackgroundImage()
+  }
+}
+
+function onSliderStart() {
+  isSliderDragging.value = true
+}
+
+function onSliderEnd() {
+  isSliderDragging.value = false
+  if (backgroundType.value === 'image') {
+    generateBackgroundImage()
+  }
+}
+
+function resetImageAdjustments() {
+  imageBrightness.value = 0
+  imageBlur.value = 0
+  onImageAdjustmentChange()
 }
 
 // 画面サイズが変更された時に背景を再生成
